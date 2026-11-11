@@ -1,0 +1,670 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Folder, FileText, Upload, ChevronRight, Lock, 
+  BookOpen, Clock, AlertCircle, ArrowLeft, CheckCircle2, File, Link, Trash2, Plus, ExternalLink, RefreshCw, Database
+} from 'lucide-react';
+
+// Configuration Supabase Direct REST API (Bebas error import bundler)
+const SUPABASE_URL = 'https://sdozoyofodzjrybtaaix.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_venJk1CkRv7cKfD5h8Mq3g_4xvwPax0';
+
+// Helper Client Supabase Sederhana menggunakan standard Fetch API
+const supabaseApi = {
+  async select() {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/mangadit_items?select=*`, {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      });
+      if (!res.ok) return { data: null, error: res.statusText };
+      const data = await res.json();
+      return { data, error: null };
+    } catch (err) {
+      return { data: null, error: err };
+    }
+  },
+
+  async insert(item) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/mangadit_items`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(item)
+      });
+      return { ok: res.ok };
+    } catch (err) {
+      return { ok: false };
+    }
+  },
+
+  async delete(id) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/mangadit_items?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      });
+      return { ok: res.ok };
+    } catch (err) {
+      return { ok: false };
+    }
+  },
+
+  async updateNote(id, noteText) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/mangadit_items?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ note: noteText })
+      });
+      return { ok: res.ok };
+    } catch (err) {
+      return { ok: false };
+    }
+  }
+};
+
+export default function MangAditCloud() {
+  const [passcode, setPasscode] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [passError, setPassError] = useState(false);
+
+  // Navigasi State
+  const [currentView, setCurrentView] = useState('jenjang');
+  const [selectedJenjang, setSelectedJenjang] = useState('');
+  const [selectedSemester, setSelectedSemester] = useState('');
+  const [selectedMatkul, setSelectedMatkul] = useState('');
+  const [selectedKategori, setSelectedKategori] = useState('');
+  const [activeFile, setActiveFile] = useState(null);
+  const [quickNoteText, setQuickNoteText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [dbStatus, setDbStatus] = useState('Terhubung ke Supabase');
+
+  // State Input Tambah Link & File
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [modalType, setModalType] = useState('file'); // 'file' atau 'link'
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemUrl, setNewItemUrl] = useState('');
+
+  // Data Dinamis Mata Kuliah S1 dan S2
+  const dataAkademik = {
+    'Sarjana (S1)': {
+      'Semester 1': ['Pancasila', 'Bahasa Indonesia', 'Bahasa Inggris', 'Seni Karawitan', 'Unggah-Ungguh Basa', 'Folklor Jawi', 'Teori Sastra Jawi', 'Maos lan Nyerat Aksara Jawa', 'Paramabasa', 'Bahasa Bantu', 'Sejarah Kabudayan Jawi'],
+      'Semester 2': ['Ilmu Pendidikan', 'Psikologi Pendidikan', 'Pendidikan Agama Islam*)', 'Pendidikan Kewarganegaraan', 'Sejarah Sastra Jawi', 'Busana Jawi', 'Filsafat Jawi', 'Tembang Jawi', 'Tata Ukara lan Tata Makna', 'Trampil Basa Jawi', 'Ngelmu Filologi'],
+      'Semester 3': ['Apresiasi Budaya', 'Manajemen Pendidikan', 'Sosiologi dan Antropologi Pendidikan', 'Literasi Sains dan Teknologi', 'Kurikulum Pembelajaran Bahasa Jawa', 'Media Pembelajaran & TI Bahasa Jawa', 'Kritik Sastra Jawi', 'Nyerat Karya Sastra Jawi', 'Sesorah', 'Sosiopragmatik', 'Maos Naskah Jawi'],
+      'Semester 4': ['Statistika', 'Transformasi Digital', 'Kreativitas, Inovasi, dan Kewirausahaan', 'Strategi Pembelajaran, Basa, Sastra, dan Budaya Jawa', 'Penilaian Pembelajaran Bahasa Jawa', 'Analisis Manuskrip Jawi', 'Kearifan Lokal', 'Nyerat Karya Ilmiah', 'Psikolinguistik', 'Ngelmu Primbon', 'Metode Panaliten Pendidikan, Basa, Sastra, Budaya Jawi'],
+      'Semester 5': ['TEMBANG MACAPAT', 'KAJIAN LAKON WAYANG', 'PRANATACARA RESMI', 'PRANATACARA TRADISI', 'PENULISAN BUKU', 'JURNALISTIK BASA JAWI', 'DIALEKTOLOGI', 'TEKSTOLOGI', 'FILOLOGI ANTARBIDANG', 'PENDIDIKAN KEJOGJAKARTAAN', 'Pendidikan Inklusi'],
+      'Semester 6': ['SOSIOLINGUISTIK', 'SANGGAR SASTRA JAWI', 'SEMINAR PENELITIAN', 'GENDHING PAHARGYAN', 'PENYUNTING BASA JAWI', 'KODIKOLOGI', 'PEMBELAJARAN MIKRO', 'MANAJEMEN BUDAYA', 'KULIAH KERJA NYATA'],
+      'Semester 7': ['PRAKTIK KEPENDIDIKAN'],
+      'Semester 8': ['Tugas Akhir Sarjana']
+    },
+    'Magister (S2)': {
+      'Semester 1': [
+        'FILSAFAT ILMU',
+        'KAJIAN MULTIDISIPLIN BAHASA, SASTRA, DAN BUDAYA JAWA',
+        'KAJIAN WACANA KRITIS BAHASA, SASTRA, DAN BUDAYA JAWA',
+        'KAJIAN ANTROPOLOGI BAHASA, SASTRA, DAN BUDAYA JAWA',
+        'PENULISAN KREATIF',
+        'KONTEN KREATOR JAWA',
+        'STATISTIKA TERAPAN',
+        'TEKNOLOGI INFORMASI PEMBELAJARAN BAHASA, SASTRA, DAN BUDAYA'
+      ],
+      'Semester 2': ['Proposal Tesis', 'Seminar S2', 'Mata Kuliah Pilihan 1'],
+      'Semester 3': ['Penelitian Tesis'],
+      'Semester 4': ['Sidang Tesis']
+    }
+  };
+
+  const currentSemesterList = selectedJenjang ? Object.keys(dataAkademik[selectedJenjang] || {}) : [];
+  const currentMatkulList = (selectedJenjang && selectedSemester) ? (dataAkademik[selectedJenjang]?.[selectedSemester] || []) : [];
+
+  const kategoriList = [
+    { name: 'Materi Dosen', desc: 'Slide PPT, PDF Jurnal & Silabus' },
+    { name: 'Catatan Pribadi', desc: 'Ringkasan & Coretan Kuliah' },
+    { name: 'Tugas', desc: 'Makalah, Paper & Tugas Mingguan' },
+    { name: 'Ujian (UTS/UAS)', desc: 'Bahan UTS, UAS & Proyek' }
+  ];
+
+  // State penyimpanan berkas
+  const [itemsStore, setItemsStore] = useState(() => {
+    const saved = localStorage.getItem('mangadit_cloud_items');
+    return saved ? JSON.parse(saved) : [
+      { id: 1, path: 'Magister (S2)/Semester 1/FILSAFAT ILMU/Materi Dosen', name: 'Pengantar Filsafat Ilmu.pdf', type: 'file', url: '', status: 'Selesai', date: '12 Nov 2026', note: 'Pahami bab ontologi dan epistemologi.' },
+      { id: 2, path: 'Magister (S2)/Semester 1/FILSAFAT ILMU/Materi Dosen', name: 'Link Journal JSTOR', type: 'link', url: 'https://jstor.org', status: 'Referensi', date: '14 Nov 2026', note: 'Artikel rujukan filsafat modern.' }
+    ];
+  });
+
+  const currentPath = `${selectedJenjang}/${selectedSemester}/${selectedMatkul}/${selectedKategori}`;
+  const currentFiles = itemsStore.filter(item => item.path === currentPath);
+
+  // Ambil Data dari Supabase saat aplikasi siap atau path berubah
+  useEffect(() => {
+    fetchDataFromSupabase();
+  }, [currentPath]);
+
+  const fetchDataFromSupabase = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabaseApi.select();
+      if (error) {
+        console.log("Supabase Notice: Menggunakan mode local sync.");
+      } else if (data && data.length > 0) {
+        setItemsStore(data);
+        setDbStatus('Tersinkron dengan Cloud Supabase');
+      }
+    } catch (err) {
+      console.log("Offline / Sync Fallback Mode", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    localStorage.setItem('mangadit_cloud_items', JSON.stringify(itemsStore));
+  }, [itemsStore]);
+
+  const handleKeypad = (num) => {
+    if (passcode.length < 6) {
+      const nextPass = passcode + num;
+      setPasscode(nextPass);
+      if (nextPass.length === 6) {
+        if (nextPass === '625724') {
+          setIsAuthenticated(true);
+          setPassError(false);
+        } else {
+          setPassError(true);
+          setTimeout(() => setPasscode(''), 500);
+        }
+      }
+    }
+  };
+
+  const handleBackspace = () => {
+    setPasscode(passcode.slice(0, -1));
+    setPassError(false);
+  };
+
+  // Fungsi Tambah File/Link (Sync ke Supabase & Local)
+  const handleAddItem = async () => {
+    if (!newItemName) return;
+    const newItem = {
+      id: Date.now(),
+      path: currentPath,
+      name: newItemName,
+      type: modalType,
+      url: newItemUrl || '#',
+      status: 'Baru',
+      date: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+      note: ''
+    };
+
+    setItemsStore(prev => [...prev, newItem]);
+
+    try {
+      await supabaseApi.insert(newItem);
+    } catch (e) {
+      console.log("Simpan lokal aktif");
+    }
+
+    setNewItemName('');
+    setNewItemUrl('');
+    setShowUploadModal(false);
+  };
+
+  // Fungsi Hapus File/Link
+  const handleDeleteItem = async (id, e) => {
+    e.stopPropagation();
+    setItemsStore(prev => prev.filter(i => i.id !== id));
+    if (activeFile?.id === id) setActiveFile(null);
+
+    try {
+      await supabaseApi.delete(id);
+    } catch (e) {
+      console.log("Hapus lokal aktif");
+    }
+  };
+
+  // Fungsi Simpan Quick Note
+  const handleSaveNote = async () => {
+    if (!activeFile) return;
+    const updatedStore = itemsStore.map(item => item.id === activeFile.id ? { ...item, note: quickNoteText } : item);
+    setItemsStore(updatedStore);
+
+    try {
+      await supabaseApi.updateNote(activeFile.id, quickNoteText);
+    } catch (e) {
+      console.log("Catatan tersimpan di lokal");
+    }
+  };
+
+  useEffect(() => {
+    if (activeFile) {
+      setQuickNoteText(activeFile.note || '');
+    } else {
+      setQuickNoteText('');
+    }
+  }, [activeFile]);
+
+  // 1. HALAMAN LOGIN (PASSCODE)
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl flex flex-col items-center">
+          <div className="w-14 h-14 bg-red-950/80 border border-red-600/40 rounded-full flex items-center justify-center mb-4 shadow-lg shadow-red-950/50">
+            <Lock className="w-7 h-7 text-red-500" />
+          </div>
+          
+          <h1 className="text-2xl font-bold tracking-tight text-white mb-1">MangAditCloud</h1>
+          <p className="text-xs text-zinc-400 mb-6">Masukkan 6 Digit Passcode Keamanan</p>
+
+          <div className="flex gap-2 mb-6">
+            {[...Array(6)].map((_, i) => (
+              <div 
+                key={i} 
+                className={`w-4 h-4 rounded-full border transition-all duration-200 ${
+                  i < passcode.length 
+                    ? 'bg-red-600 border-red-500 shadow-sm shadow-red-600' 
+                    : 'bg-zinc-800 border-zinc-700'
+                } ${passError ? 'border-red-500 bg-red-900/50 animate-bounce' : ''}`}
+              />
+            ))}
+          </div>
+
+          {passError && (
+            <p className="text-xs text-red-500 mb-4 flex items-center gap-1 font-medium">
+              <AlertCircle className="w-3.5 h-3.5" /> Passcode Salah!
+            </p>
+          )}
+
+          <div className="grid grid-cols-3 gap-3 w-full max-w-[240px]">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+              <button
+                key={num}
+                onClick={() => handleKeypad(num.toString())}
+                className="h-12 bg-zinc-800/80 hover:bg-red-900/30 active:bg-red-600/40 border border-zinc-700/50 hover:border-red-600/40 text-lg font-semibold rounded-xl text-zinc-200 transition-all flex items-center justify-center"
+              >
+                {num}
+              </button>
+            ))}
+            <button
+              onClick={() => setPasscode('')}
+              className="h-12 bg-zinc-800/40 hover:bg-zinc-800 text-xs font-semibold rounded-xl text-zinc-400 border border-zinc-800 flex items-center justify-center"
+            >
+              C
+            </button>
+            <button
+              onClick={() => handleKeypad('0')}
+              className="h-12 bg-zinc-800/80 hover:bg-red-900/30 active:bg-red-600/40 border border-zinc-700/50 hover:border-red-600/40 text-lg font-semibold rounded-xl text-zinc-200 transition-all flex items-center justify-center"
+            >
+              0
+            </button>
+            <button
+              onClick={handleBackspace}
+              className="h-12 bg-zinc-800/40 hover:bg-zinc-800 text-xs font-semibold rounded-xl text-zinc-400 border border-zinc-800 flex items-center justify-center"
+            >
+              ⌫
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. HALAMAN UTAMA DASHBOARD
+  return (
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans">
+      {/* Header Bar */}
+      <header className="h-16 border-b border-zinc-800/80 bg-zinc-900/50 backdrop-blur px-6 flex items-center justify-between sticky top-0 z-20">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center shadow-md shadow-red-950">
+            <BookOpen className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <span className="font-bold text-lg text-white tracking-wide block leading-none">MangAditCloud</span>
+            <span className="text-[10px] text-red-400 font-mono flex items-center gap-1 mt-0.5">
+              <Database className="w-3 h-3" /> {dbStatus}
+            </span>
+          </div>
+        </div>
+
+        <button 
+          onClick={() => { setIsAuthenticated(false); setPasscode(''); }}
+          className="text-xs bg-zinc-800 hover:bg-red-950/60 hover:text-red-400 border border-zinc-700/50 hover:border-red-600/40 text-zinc-300 px-3 py-1.5 rounded-lg transition-all"
+        >
+          Kunci Aplikasi
+        </button>
+      </header>
+
+      {/* Main Container */}
+      <main className="flex-1 p-6 max-w-7xl w-full mx-auto flex flex-col">
+        {/* Breadcrumb Navigation */}
+        <nav className="flex items-center gap-2 text-sm text-zinc-400 mb-6 bg-zinc-900/40 border border-zinc-800/60 px-4 py-2.5 rounded-xl w-fit flex-wrap">
+          <button 
+            onClick={() => setCurrentView('jenjang')}
+            className={`hover:text-red-400 transition-colors ${currentView === 'jenjang' ? 'text-red-500 font-semibold' : ''}`}
+          >
+            Beranda
+          </button>
+          
+          {selectedJenjang && (
+            <>
+              <ChevronRight className="w-4 h-4 text-zinc-600" />
+              <button 
+                onClick={() => setCurrentView('semester')}
+                className={`hover:text-red-400 transition-colors ${currentView === 'semester' ? 'text-red-500 font-semibold' : ''}`}
+              >
+                {selectedJenjang}
+              </button>
+            </>
+          )}
+
+          {selectedSemester && (
+            <>
+              <ChevronRight className="w-4 h-4 text-zinc-600" />
+              <button 
+                onClick={() => setCurrentView('matkul')}
+                className={`hover:text-red-400 transition-colors ${currentView === 'matkul' ? 'text-red-500 font-semibold' : ''}`}
+              >
+                {selectedSemester}
+              </button>
+            </>
+          )}
+
+          {selectedMatkul && (
+            <>
+              <ChevronRight className="w-4 h-4 text-zinc-600" />
+              <button 
+                onClick={() => setCurrentView('kategori')}
+                className={`hover:text-red-400 transition-colors ${currentView === 'kategori' ? 'text-red-500 font-semibold' : ''}`}
+              >
+                {selectedMatkul}
+              </button>
+            </>
+          )}
+
+          {selectedKategori && (
+            <>
+              <ChevronRight className="w-4 h-4 text-zinc-600" />
+              <span className="text-red-500 font-semibold">{selectedKategori}</span>
+            </>
+          )}
+        </nav>
+
+        {/* Dynamic Views */}
+        {currentView === 'jenjang' && (
+          <div>
+            <h2 className="text-xl font-bold text-white mb-2">Pilih Jenjang Akademis</h2>
+            <p className="text-sm text-zinc-400 mb-6">Pilih direktori utama arsip pendidikan Anda</p>
+            <div className="grid md:grid-cols-2 gap-4">
+              {[{ id: 's1', name: 'Sarjana (S1)', desc: 'Arsip & Dokumen Kelulusan S1' }, { id: 's2', name: 'Magister (S2)', desc: 'Arsip Perkuliahan S2 Aktif' }].map((item) => (
+                <div 
+                  key={item.id}
+                  onClick={() => { setSelectedJenjang(item.name); setCurrentView('semester'); }}
+                  className="bg-zinc-900/60 border border-zinc-800 hover:border-red-600/50 hover:bg-zinc-900 p-5 rounded-2xl cursor-pointer transition-all flex items-center justify-between group shadow-sm hover:shadow-red-950/20"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-red-950/40 border border-red-600/30 rounded-xl flex items-center justify-center text-red-500 group-hover:bg-red-600 group-hover:text-white transition-all">
+                      <Folder className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg text-white group-hover:text-red-400 transition-colors">{item.name}</h3>
+                      <p className="text-xs text-zinc-400">{item.desc}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-red-500 group-hover:translate-x-1 transition-all" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {currentView === 'semester' && (
+          <div>
+            <h2 className="text-xl font-bold text-white mb-2">{selectedJenjang}</h2>
+            <p className="text-sm text-zinc-400 mb-6">Pilih semester perkuliahan</p>
+            <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {currentSemesterList.map((sem, idx) => (
+                <div 
+                  key={idx}
+                  onClick={() => { setSelectedSemester(sem); setCurrentView('matkul'); }}
+                  className="bg-zinc-900/60 border border-zinc-800 hover:border-red-600/50 hover:bg-zinc-900 p-5 rounded-2xl cursor-pointer transition-all group"
+                >
+                  <Folder className="w-8 h-8 text-red-500 mb-3 group-hover:scale-110 transition-transform" />
+                  <h3 className="font-bold text-white group-hover:text-red-400">{sem}</h3>
+                  <p className="text-xs text-zinc-500 mt-1">{dataAkademik[selectedJenjang]?.[sem]?.length || 0} Mata Kuliah</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {currentView === 'matkul' && (
+          <div>
+            <h2 className="text-xl font-bold text-white mb-2">{selectedSemester}</h2>
+            <p className="text-sm text-zinc-400 mb-6">Daftar Mata Kuliah</p>
+            <div className="grid md:grid-cols-2 gap-4">
+              {currentMatkulList.map((mk, idx) => (
+                <div 
+                  key={idx}
+                  onClick={() => { setSelectedMatkul(mk); setCurrentView('kategori'); }}
+                  className="bg-zinc-900/60 border border-zinc-800 hover:border-red-600/50 hover:bg-zinc-900 p-5 rounded-2xl cursor-pointer transition-all flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-3">
+                    <Folder className="w-6 h-6 text-red-500 flex-shrink-0" />
+                    <span className="font-medium text-white group-hover:text-red-400">{mk}</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-red-500 transition-colors flex-shrink-0" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {currentView === 'kategori' && (
+          <div>
+            <h2 className="text-xl font-bold text-white mb-2">{selectedMatkul}</h2>
+            <p className="text-sm text-zinc-400 mb-6">Kategori Arsip</p>
+            <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {kategoriList.map((kat, idx) => (
+                <div 
+                  key={idx}
+                  onClick={() => { setSelectedKategori(kat.name); setCurrentView('workspace'); }}
+                  className="bg-zinc-900/60 border border-zinc-800 hover:border-red-600/50 hover:bg-zinc-900 p-5 rounded-2xl cursor-pointer transition-all group"
+                >
+                  <Folder className="w-8 h-8 text-red-500 mb-3 group-hover:scale-110 transition-transform" />
+                  <h3 className="font-bold text-white group-hover:text-red-400">{kat.name}</h3>
+                  <p className="text-xs text-zinc-500 mt-1">{kat.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* WORKSPACE VIEW (SPLIT-VIEW UNTUK FILE & QUICK NOTES) */}
+        {currentView === 'workspace' && (
+          <div className="flex-1 grid md:grid-cols-12 gap-6 items-start">
+            {/* File List Panel (Sisi Kiri) */}
+            <div className="md:col-span-6 bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div>
+                  <h3 className="font-bold text-white text-lg">{selectedKategori}</h3>
+                  <p className="text-xs text-zinc-400">{currentFiles.length} Berkas Tersimpan</p>
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => { setModalType('file'); setShowUploadModal(true); }}
+                    className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-2 rounded-xl font-medium transition-colors shadow-sm shadow-red-950"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> File
+                  </button>
+                  <button 
+                    onClick={() => { setModalType('link'); setShowUploadModal(true); }}
+                    className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-white text-xs px-3 py-2 rounded-xl font-medium transition-colors border border-zinc-700"
+                  >
+                    <Link className="w-3.5 h-3.5" /> Link GDrive/Web
+                  </button>
+                </div>
+              </div>
+
+              {currentFiles.length === 0 ? (
+                <div className="p-8 text-center border border-dashed border-zinc-800 rounded-xl text-zinc-500 text-xs">
+                  Belum ada file atau link tersimpan di kategori ini.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {currentFiles.map((item) => (
+                    <div 
+                      key={item.id}
+                      onClick={() => setActiveFile(item)}
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                        activeFile?.id === item.id 
+                          ? 'bg-red-950/30 border-red-600/60' 
+                          : 'bg-zinc-950/40 border-zinc-800/80 hover:border-zinc-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                        {item.type === 'link' ? (
+                          <Link className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                        ) : (
+                          <File className="w-5 h-5 text-red-500 flex-shrink-0" />
+                        )}
+                        <div className="truncate">
+                          <p className="text-sm font-medium text-white truncate">{item.name}</p>
+                          <p className="text-[10px] text-zinc-500">{item.date} • {item.type.toUpperCase()}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {item.url && item.url !== '#' && (
+                          <a 
+                            href={item.url} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        <button 
+                          onClick={(e) => handleDeleteItem(item.id, e)}
+                          className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Editor & Quick Notes Panel (Sisi Kanan) */}
+            <div className="md:col-span-6 bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 flex flex-col h-full min-h-[400px]">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-zinc-800">
+                <h3 className="font-bold text-white text-lg">Quick Notes</h3>
+                <span className="text-xs text-zinc-400">Sinkronisasi Cloud</span>
+              </div>
+
+              {activeFile ? (
+                <div className="mb-3 text-xs bg-red-950/20 border border-red-900/30 text-red-300 p-2.5 rounded-xl flex justify-between items-center">
+                  <span>Tersambung ke: <strong className="text-white">{activeFile.name}</strong></span>
+                </div>
+              ) : (
+                <div className="mb-3 text-xs bg-zinc-800/40 border border-zinc-800 text-zinc-400 p-2.5 rounded-xl">
+                  Klik salah satu berkas di sebelah kiri untuk menautkan catatan ini.
+                </div>
+              )}
+
+              <textarea 
+                value={quickNoteText}
+                onChange={(e) => setQuickNoteText(e.target.value)}
+                disabled={!activeFile}
+                placeholder={activeFile ? "Ketik catatan penting, rangkuman, atau daftar tugas terkait berkas ini..." : "Pilih berkas terlebih dahulu untuk mulai mengetik..."}
+                className="flex-1 w-full bg-zinc-950/60 border border-zinc-800 rounded-xl p-3 text-sm text-zinc-200 focus:outline-none focus:border-red-600/60 resize-none min-h-[200px] disabled:opacity-50"
+              />
+
+              <div className="mt-4 flex justify-end">
+                <button 
+                  onClick={handleSaveNote}
+                  disabled={!activeFile}
+                  className="bg-red-600 hover:bg-red-700 disabled:bg-zinc-800 text-white text-xs px-4 py-2 rounded-xl font-medium transition-colors shadow-sm shadow-red-950 flex items-center gap-1.5"
+                >
+                  <Database className="w-3.5 h-3.5" /> Simpan Catatan Ke Supabase
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* MODAL INPUT FILE / LINK */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-1">
+              {modalType === 'file' ? 'Tambah File Baru' : 'Tambah Link (GDrive / Web)'}
+            </h3>
+            <p className="text-xs text-zinc-400 mb-4">
+              {modalType === 'file' ? 'Masukkan nama file untuk diarsipkan di kategori ini.' : 'Tautkan URL Google Drive atau referensi website.'}
+            </p>
+
+            <div className="space-y-3 mb-6">
+              <div>
+                <label className="text-xs text-zinc-400 block mb-1">Nama Judul Berkas / Tugas</label>
+                <input 
+                  type="text" 
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                  placeholder="Misal: Makalah Bab 1 Filsafat Ilmu.pdf"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-red-600"
+                />
+              </div>
+
+              {modalType === 'link' && (
+                <div>
+                  <label className="text-xs text-zinc-400 block mb-1">URL / Link Google Drive</label>
+                  <input 
+                    type="text" 
+                    value={newItemUrl}
+                    onChange={(e) => setNewItemUrl(e.target.value)}
+                    placeholder="https://drive.google.com/file/d/..."
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-red-600"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button 
+                onClick={() => setShowUploadModal(false)}
+                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs px-4 py-2 rounded-xl"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={handleAddItem}
+                className="bg-red-600 hover:bg-red-700 text-white text-xs px-4 py-2 rounded-xl font-medium"
+              >
+                Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
