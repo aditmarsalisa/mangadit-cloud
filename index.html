@@ -6,29 +6,233 @@
   <meta name="theme-color" content="#881337" />
   <title>MangAditCloud</title>
   
-  <!-- Penghubung Manifest untuk PWA & APK -->
+  <!-- Manifest PWA -->
   <link rel="manifest" href="manifest.json" />
   
-  <!-- Tailwind CSS & React Standalone -->
+  <!-- CDN Dependencies -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="bg-neutral-950 text-white">
+<body class="bg-neutral-950 text-white min-h-screen">
   <div id="root"></div>
 
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    // --- TEMPEL KODE APLIKASI MANGADITCLOUD ANDA DI BAWAH BARIS INI ---
-    // (Hapus baris "import React..." dan "import { Folder... } from 'lucide-react'" di bagian paling atas kode lama Anda)
-    
+    // Supabase REST Config
+    const SUPABASE_URL = 'https://sdozoyofodzjrybtaaix.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_venJk1CkRv7cKfD5h8Mq3g_4xvwPax0';
 
+    const supabaseApi = {
+      async select() {
+        try {
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/mangadit_items?select=*`, {
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            }
+          });
+          if (!res.ok) return { data: null, error: res.statusText };
+          const data = await res.json();
+          return { data, error: null };
+        } catch (err) {
+          return { data: null, error: err.message };
+        }
+      },
+      async insert(payload) {
+        try {
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/mangadit_items`, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok) return { data: null, error: res.statusText };
+          const data = await res.json();
+          return { data, error: null };
+        } catch (err) {
+          return { data: null, error: err.message };
+        }
+      },
+      async delete(id) {
+        try {
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/mangadit_items?id=eq.${id}`, {
+            method: 'DELETE',
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            }
+          });
+          if (!res.ok) return { error: res.statusText };
+          return { error: null };
+        } catch (err) {
+          return { error: err.message };
+        }
+      }
+    };
 
+    function App() {
+      const [pin, setPin] = useState('');
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [items, setItems] = useState([]);
+      const [title, setTitle] = useState('');
+      const [url, setUrl] = useState('');
+      const [category, setCategory] = useState('Modul');
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
 
-    // --- AKHIR KODE APLIKASI ---
+      useEffect(() => {
+        if (isAuthenticated) {
+          loadData();
+        }
+      }, [isAuthenticated]);
+
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      });
+
+      const loadData = async () => {
+        setLoading(true);
+        const { data, error } = await supabaseApi.select();
+        if (error) setError('Gagal mengambil data dari Supabase');
+        else setItems(data || []);
+        setLoading(false);
+      };
+
+      const handleLogin = (e) => {
+        e.preventDefault();
+        if (pin === '1234') { // Ubah PIN sesuai keinginan
+          setIsAuthenticated(true);
+          setError('');
+        } else {
+          setError('PIN Salah!');
+        }
+      };
+
+      const handleAdd = async (e) => {
+        e.preventDefault();
+        if (!title || !url) return;
+        setLoading(true);
+        const { error } = await supabaseApi.insert({ title, url, category });
+        if (error) setError('Gagal menyimpan item');
+        else {
+          setTitle('');
+          setUrl('');
+          loadData();
+        }
+        setLoading(false);
+      };
+
+      const handleDelete = async (id) => {
+        setLoading(true);
+        const { error } = await supabaseApi.delete(id);
+        if (error) setError('Gagal menghapus item');
+        else loadData();
+        setLoading(false);
+      };
+
+      if (!isAuthenticated) {
+        return (
+          <div className="flex flex-col items-center justify-center min-h-screen p-4">
+            <div className="w-full max-w-sm p-6 bg-neutral-900 rounded-2xl border border-rose-900/40 shadow-xl text-center">
+              <div className="w-16 h-16 bg-rose-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-600/30">
+                <i data-lucide="lock" className="w-8 h-8 text-rose-500"></i>
+              </div>
+              <h1 className="text-2xl font-bold mb-2 text-rose-500">MangAditCloud</h1>
+              <p className="text-neutral-400 text-sm mb-6">Masukkan PIN Keamanan</p>
+              <form onSubmit={handleLogin} className="space-y-4">
+                <input
+                  type="password"
+                  maxLength="4"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  placeholder="****"
+                  className="w-full text-center text-2xl tracking-widest py-3 bg-neutral-950 border border-neutral-800 rounded-xl focus:outline-none focus:border-rose-600 text-white"
+                />
+                {error && <p className="text-rose-500 text-xs">{error}</p>}
+                <button type="submit" className="w-full py-3 bg-rose-700 hover:bg-rose-600 font-semibold rounded-xl transition">
+                  Buka Aplikasi
+                </button>
+              </form>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="max-w-md mx-auto p-4 pb-20">
+          <header className="flex items-center justify-between py-4 mb-6 border-b border-neutral-800">
+            <h1 className="text-xl font-bold text-rose-500 flex items-center gap-2">
+              <i data-lucide="database" className="w-5 h-5"></i> MangAditCloud
+            </h1>
+            <button onClick={() => setIsAuthenticated(false)} className="text-xs bg-neutral-800 px-3 py-1.5 rounded-lg text-neutral-400 hover:text-white">
+              Keluar
+            </button>
+          </header>
+
+          <form onSubmit={handleAdd} className="bg-neutral-900 p-4 rounded-xl border border-neutral-800 mb-6 space-y-3">
+            <input
+              type="text"
+              placeholder="Judul / Nama File"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 bg-neutral-950 border border-neutral-800 rounded-lg text-sm text-white focus:outline-none focus:border-rose-600"
+            />
+            <input
+              type="url"
+              placeholder="Link URL (https://...)"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="w-full px-3 py-2 bg-neutral-950 border border-neutral-800 rounded-lg text-sm text-white focus:outline-none focus:border-rose-600"
+            />
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-3 py-2 bg-neutral-950 border border-neutral-800 rounded-lg text-sm text-white focus:outline-none focus:border-rose-600"
+            >
+              <option value="Modul">Modul</option>
+              <option value="Jadwal">Jadwal</option>
+              <option value="Tugas">Tugas</option>
+              <option value="Lainnya">Lainnya</option>
+            </select>
+            <button type="submit" disabled={loading} className="w-full py-2.5 bg-rose-700 hover:bg-rose-600 text-sm font-semibold rounded-lg transition">
+              {loading ? 'Menyimpan...' : 'Simpan ke Supabase'}
+            </button>
+          </form>
+
+          {error && <div className="p-3 bg-rose-950/50 border border-rose-800 text-rose-400 text-xs rounded-lg mb-4">{error}</div>}
+
+          <div className="space-y-3">
+            {items.map((item) => (
+              <div key={item.id} className="bg-neutral-900 p-3.5 rounded-xl border border-neutral-800 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] px-2 py-0.5 bg-rose-950 text-rose-400 border border-rose-900/50 rounded-full">{item.category}</span>
+                  <h3 className="font-medium text-sm mt-1">{item.title}</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a href={item.url} target="_blank" rel="noreferrer" className="p-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-neutral-300">
+                    <i data-lucide="external-link" className="w-4 h-4"></i>
+                  </a>
+                  <button onClick={() => handleDelete(item.id)} className="p-2 bg-neutral-800 hover:bg-rose-950 text-rose-500 rounded-lg">
+                    <i data-lucide="trash-2" className="w-4 h-4"></i>
+                  </button>
+                </div>
+              </div>
+            ))}
+            {items.length === 0 && !loading && <p className="text-center text-neutral-500 text-sm py-8">Belum ada data di cloud.</p>}
+          </div>
+        </div>
+      );
+    }
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
