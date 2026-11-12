@@ -1,13 +1,22 @@
 {
-  "background_color": "#ffffff",
-  "dir": "ltr",
-  "display": "standalone",
   "name": "MangAditCloud",
-  "orientation": "any",
-  "scope": "/",
   "short_name": "MangAdit",
-  "start_url": "/",
+  "start_url": "/mangadit-cloud/",
+  "scope": "/mangadit-cloud/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
   "theme_color": "#881337",
-  "id": "com.mangadit.cloud",
-  "description": "Aplikasi Manajemen Akademik MangAditCloud"
+  "description": "Aplikasi Manajemen Akademik MangAditCloud",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3767/3767084.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3767/3767084.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }
