@@ -1,8 +1,9 @@
 {
+  "id": "com.mangadit.cloud",
   "name": "MangAditCloud",
   "short_name": "MangAdit",
-  "start_url": "/mangadit-cloud/",
-  "scope": "/mangadit-cloud/",
+  "start_url": "https://aditmarsalisa.github.io/mangadit-cloud/",
+  "scope": "https://aditmarsalisa.github.io/mangadit-cloud/",
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#881337",
@@ -11,12 +12,14 @@
     {
       "src": "https://cdn-icons-png.flaticon.com/512/3767/3767084.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "https://cdn-icons-png.flaticon.com/512/3767/3767084.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
