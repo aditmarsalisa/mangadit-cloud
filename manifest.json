@@ -1,0 +1,13 @@
+{
+  "background_color": "#ffffff",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "MangAditCloud",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "MangAdit",
+  "start_url": "/",
+  "theme_color": "#881337",
+  "id": "com.mangadit.cloud",
+  "description": "Aplikasi Manajemen Akademik MangAditCloud"
+}
